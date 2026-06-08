@@ -1,0 +1,15 @@
+# Personal quiz progress (per-user runtime data)
+data/notes.json
+data/state.json
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+venv/
+
+# OS / editor
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/

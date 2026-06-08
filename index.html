@@ -1,0 +1,171 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AWS SAA-C03 Quiz</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div id="app">
+        <!-- Left: Main Content -->
+        <main id="main-content">
+            <!-- Top Bar -->
+            <header class="top-bar">
+                <div class="top-left">
+                    <h1>AWS SAA-C03 考古題練習</h1>
+                </div>
+                <div class="top-right">
+                    <div class="stats" id="stats">
+                        <span id="stat-answered">已答: 0</span>
+                        <span id="stat-correct">正確: 0</span>
+                        <span id="stat-accuracy">正確率: --</span>
+                    </div>
+                    <button id="btn-notes-page" class="notes-page-btn" title="我的筆記">📒 我的筆記</button>
+                    <button id="chat-toggle" class="chat-toggle-btn" title="開啟/關閉 AI 助教">💬 AI 助教</button>
+                </div>
+            </header>
+
+            <!-- Navigation & Filter -->
+            <div class="controls">
+                <div class="nav-controls">
+                    <button id="btn-prev" title="上一題">◀ 上一題</button>
+                    <span class="question-nav">
+                        <input type="number" id="question-jump" min="1" placeholder="#"> / <span id="total-questions">0</span>
+                    </span>
+                    <button id="btn-next" title="下一題">下一題 ▶</button>
+                    <button id="btn-random" title="隨機一題">🎲 隨機</button>
+                </div>
+                <div class="filter-controls">
+                    <select id="filter-status">
+                        <option value="all">全部題目</option>
+                        <option value="unanswered">未作答</option>
+                        <option value="wrong">答錯的</option>
+                        <option value="correct">答對的</option>
+                        <option value="bookmarked">已收藏</option>
+                    </select>
+                    <select id="filter-topic">
+                        <option value="all">全部 Topic</option>
+                    </select>
+                </div>
+            </div>
+
+            <!-- Question Area -->
+            <div id="question-area" class="question-area">
+                <div class="question-header">
+                    <span class="question-number" id="question-number">Question #1</span>
+                    <span class="question-topic" id="question-topic"></span>
+                    <button class="bookmark-btn" id="bookmark-btn" title="收藏">☆</button>
+                </div>
+                <div class="question-text" id="question-text"></div>
+                <div class="options" id="options"></div>
+                <div class="actions">
+                    <button id="btn-submit" class="btn-submit">確認答案</button>
+                    <button id="btn-explain" class="btn-explain" style="display:none">📖 AI 解說</button>
+                    <button id="btn-add-note" class="btn-add-note">📝 加入筆記</button>
+                </div>
+                <div id="result-area" class="result-area" style="display:none">
+                    <div id="result-text"></div>
+                </div>
+            </div>
+
+            <!-- Question Grid (mini map) -->
+            <details class="question-grid-wrapper">
+                <summary>題目總覽</summary>
+                <div id="question-grid" class="question-grid"></div>
+            </details>
+
+            <!-- Notes Page (hidden by default) -->
+            <div id="notes-page" class="notes-page" style="display:none">
+                <div class="notes-page-header">
+                    <h2>📒 我的筆記</h2>
+                    <span id="notes-count" class="notes-count">0 題</span>
+                    <button id="btn-notes-back" class="btn-notes-back">← 回到題目</button>
+                </div>
+                <div id="notes-list" class="notes-list"></div>
+                <div id="notes-empty" class="notes-empty">
+                    <p>還沒有筆記。在答題時按「📝 加入筆記」將題目加入這裡。</p>
+                </div>
+            </div>
+
+            <!-- Note Detail Modal -->
+            <div id="note-modal-overlay" class="note-modal-overlay" style="display:none">
+                <div class="note-modal">
+                    <div class="note-modal-header">
+                        <span class="note-modal-qid" id="note-modal-qid"></span>
+                        <span class="note-modal-topic" id="note-modal-topic"></span>
+                        <button id="note-modal-close" class="note-modal-close">&times;</button>
+                    </div>
+                    <div class="note-modal-body">
+                        <div class="note-modal-question" id="note-modal-question"></div>
+                        <div class="note-modal-options" id="note-modal-options"></div>
+                        <div class="note-modal-answer" id="note-modal-answer"></div>
+                        <div class="note-modal-memo">
+                            <label>我的筆記：</label>
+                            <textarea id="note-modal-textarea" placeholder="在這裡寫下你對這題的理解、重點整理..."></textarea>
+                            <button id="note-modal-save" class="note-modal-save">💾 儲存筆記</button>
+                            <span id="note-modal-saved-hint" class="note-modal-saved-hint"></span>
+                        </div>
+                    </div>
+                    <div class="note-modal-footer">
+                        <button id="note-modal-goto" class="note-modal-goto">前往此題</button>
+                        <button id="note-modal-remove" class="note-modal-remove">移除筆記</button>
+                    </div>
+                </div>
+            </div>
+        </main>
+
+        <!-- Drag divider -->
+        <div id="split-handle" class="split-handle"></div>
+
+        <!-- Right: AI Chat -->
+        <aside id="chat-panel" class="chat-panel">
+            <div class="chat-header">
+                <h3>AI 助教</h3>
+                <button id="chat-toggle-close" class="chat-close-btn">&times;</button>
+            </div>
+            <div id="chat-messages" class="chat-messages">
+                <div class="chat-msg assistant">
+                    <p>嗨！我是你的 AWS SAA 助教。可以問我任何關於題目或 AWS 服務的問題。</p>
+                </div>
+            </div>
+            <div class="chat-input-area">
+                <div class="chat-context-hint" id="chat-context-hint"></div>
+                <textarea id="chat-input" placeholder="輸入問題..." rows="2"></textarea>
+                <button id="chat-send">送出</button>
+            </div>
+            <div class="chat-settings">
+                <details>
+                    <summary>API 設定</summary>
+                    <div class="settings-form">
+                        <label>Provider:
+                            <select id="llm-provider">
+                                <option value="openai">OpenAI</option>
+                                <option value="anthropic">Anthropic</option>
+                                <option value="gemini">Gemini</option>
+                                <option value="ollama">Ollama (本機)</option>
+                            </select>
+                        </label>
+                        <label>API Key:
+                            <input type="password" id="llm-api-key" placeholder="sk-...">
+                        </label>
+                        <label>Model:
+                            <select id="llm-model"></select>
+                        </label>
+                        <label id="llm-model-custom-label" style="display:none">自訂 Model:
+                            <input type="text" id="llm-model-custom" placeholder="model 名稱">
+                        </label>
+                        <label id="ollama-url-label" style="display:none">Ollama URL:
+                            <input type="text" id="ollama-url" value="http://localhost:11434">
+                        </label>
+                        <button id="save-settings">儲存</button>
+                    </div>
+                </details>
+            </div>
+        </aside>
+    </div>
+
+    <script src="questions_data.js"></script>
+    <script src="app.js"></script>
+</body>
+</html>
