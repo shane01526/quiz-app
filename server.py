@@ -1,50 +1,114 @@
 """
 Simple server for AWS SAA Quiz App.
-Serves static files and provides API endpoints to persist notes & quiz state to local JSON files.
+
+Serves static files and provides API endpoints to persist notes & quiz state.
+
+Storage backend:
+  - If DATABASE_URL is set (e.g. on Render with a Neon Postgres), state is stored
+    in a Postgres table so it survives restarts / redeploys (true persistence).
+  - Otherwise it falls back to local JSON files under data/ (handy for local dev,
+    no database required).
 """
 
 import http.server
 import json
 import os
-import sys
 
 PORT = int(os.environ.get('PORT', 8080))
+DATABASE_URL = os.environ.get('DATABASE_URL')
+
 DATA_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'data')
-NOTES_FILE = os.path.join(DATA_DIR, 'notes.json')
-STATE_FILE = os.path.join(DATA_DIR, 'state.json')
+FILE_FOR_KEY = {
+    'notes': os.path.join(DATA_DIR, 'notes.json'),
+    'state': os.path.join(DATA_DIR, 'state.json'),
+}
 
 os.makedirs(DATA_DIR, exist_ok=True)
 
 
-def read_json(path):
+# ===================== STORAGE: Postgres =====================
+
+def _pg_connect():
+    import psycopg
+    return psycopg.connect(DATABASE_URL)
+
+
+def _pg_init():
+    """Create the key-value table once at startup."""
+    with _pg_connect() as conn:
+        conn.execute(
+            'CREATE TABLE IF NOT EXISTS app_state ('
+            '  key TEXT PRIMARY KEY,'
+            '  value JSONB NOT NULL'
+            ')'
+        )
+        conn.commit()
+
+
+def _pg_read(key):
+    with _pg_connect() as conn:
+        row = conn.execute(
+            'SELECT value FROM app_state WHERE key = %s', (key,)
+        ).fetchone()
+    return row[0] if row else {}
+
+
+def _pg_write(key, data):
+    with _pg_connect() as conn:
+        conn.execute(
+            'INSERT INTO app_state (key, value) VALUES (%s, %s) '
+            'ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value',
+            (key, json.dumps(data, ensure_ascii=False)),
+        )
+        conn.commit()
+
+
+# ===================== STORAGE: local files =====================
+
+def _file_read(key):
+    path = FILE_FOR_KEY[key]
     if os.path.exists(path):
         with open(path, 'r', encoding='utf-8') as f:
             return json.load(f)
     return {}
 
 
-def write_json(path, data):
+def _file_write(key, data):
+    path = FILE_FOR_KEY[key]
     with open(path, 'w', encoding='utf-8') as f:
         json.dump(data, f, ensure_ascii=False, indent=2)
+
+
+# ===================== STORAGE: dispatch =====================
+
+def read_data(key):
+    return _pg_read(key) if DATABASE_URL else _file_read(key)
+
+
+def write_data(key, data):
+    if DATABASE_URL:
+        _pg_write(key, data)
+    else:
+        _file_write(key, data)
 
 
 class QuizHandler(http.server.SimpleHTTPRequestHandler):
 
     def do_GET(self):
         if self.path == '/api/notes':
-            self._json_response(read_json(NOTES_FILE))
+            self._json_response(read_data('notes'))
         elif self.path == '/api/state':
-            self._json_response(read_json(STATE_FILE))
+            self._json_response(read_data('state'))
         else:
             super().do_GET()
 
     def do_POST(self):
         body = self._read_body()
         if self.path == '/api/notes':
-            write_json(NOTES_FILE, body)
+            write_data('notes', body)
             self._json_response({'ok': True})
         elif self.path == '/api/state':
-            write_json(STATE_FILE, body)
+            write_data('state', body)
             self._json_response({'ok': True})
         else:
             self.send_error(404)
@@ -78,9 +142,13 @@ class QuizHandler(http.server.SimpleHTTPRequestHandler):
 
 if __name__ == '__main__':
     os.chdir(os.path.dirname(os.path.abspath(__file__)))
-    print(f'Quiz server running at http://localhost:{PORT}')
-    print(f'Notes saved to: {NOTES_FILE}')
-    print(f'State saved to: {STATE_FILE}')
+    if DATABASE_URL:
+        _pg_init()
+        print(f'Quiz server running at http://localhost:{PORT}')
+        print('Storage: Postgres (DATABASE_URL) — data is persistent.')
+    else:
+        print(f'Quiz server running at http://localhost:{PORT}')
+        print(f'Storage: local files under {DATA_DIR} (no DATABASE_URL set).')
     httpd = http.server.HTTPServer(('', PORT), QuizHandler)
     try:
         httpd.serve_forever()

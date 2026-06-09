@@ -1,1 +1,3 @@
-# No third-party dependencies — server.py uses only the Python standard library.
+# Postgres driver — used when DATABASE_URL is set (e.g. Neon on Render).
+# Local dev without DATABASE_URL falls back to JSON files and needs nothing here.
+psycopg[binary]

@@ -3,6 +3,11 @@ services:
     name: aws-saa-quiz
     runtime: python
     plan: free
-    buildCommand: ""
+    buildCommand: pip install -r requirements.txt
     startCommand: python server.py
     autoDeploy: true
+    envVars:
+      # Paste your Neon Postgres connection string in the Render dashboard.
+      # Kept out of the repo (sync: false) so the secret is never committed.
+      - key: DATABASE_URL
+        sync: false
